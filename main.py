@@ -509,17 +509,17 @@ def review_evaluation(sites, sitename, out_path, saveprefix, plotpath):
         dfx = pandas.read_csv(efn)
         ns, df = dfx.shape
         d = forecast.evaluations.index_of_agreement_d(dfx['truth'], dfx['prediction'])
-        dr = forecast.evaluations.index_of_agreement_dr(dfx['truth'], dfx['prediction'])
-        mbr = forecast.evaluations.index_of_agreement_mbr(dfx['truth'], dfx['prediction'])
-        lmp = forecast.evaluations.index_of_agreement_lmp(dfx['truth'], dfx['prediction'])
+        nme = forecast.evaluations.normalized_mean_error(dfx['truth'], dfx['prediction'])
+        nmb = forecast.evaluations.normalized_mean_bias(dfx['truth'], dfx['prediction'])
+        rsme = forecast.evaluations.root_mean_square_error(dfx['truth'], dfx['prediction'])
         r2 = forecast.evaluations.coefficient_of_determination_r2(dfx['truth'], dfx['prediction'])
         mape = forecast.evaluations.mean_absolute_percentage_error(dfx['truth'], dfx['prediction'])
         item = {
             'site': site_name,
             'd': d,
-            'dr':dr,
-            'mbr':mbr,
-            'lmp':lmp,
+            'nmb':nmb,
+            'nme':nme,
+            'rmse':rmse,
             'r2':r2,
             'mape':mape,
             'model': model,
@@ -545,7 +545,7 @@ def review_evaluation(sites, sitename, out_path, saveprefix, plotpath):
             for modeli in models:
                 dfi = df.loc[(df['model'] == modeli) & (df['measurement'] == mi) & (df['season'] == si)]
                 dfi = dfi.set_index('site')
-                col_names = ['d', 'dr', 'mbr', 'lmp', 'r2', 'mape']
+                col_names = ['d', 'nmb', 'nme', 'rmse', 'r2', 'mape']
                 colmap = {}
                 for ci in col_names:
                     colmap[ci] = modeli + '-' + ci

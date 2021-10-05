@@ -147,16 +147,16 @@ def index_of_agreement_d(truth, prd):
     return he.d(prd, truth)
 
 
-def index_of_agreement_dr(truth, prd):
-    return he.dr(prd, truth)
+def normalized_mean_bias(truth, prd):
+    return he.nmb(prd, truth)
 
 
-def index_of_agreement_mbr(truth, prd):
-    return he.mb_r(prd, truth)
+def normalized_mean_error(truth, prd):
+    return he.nme(prd, truth)
 
 
-def index_of_agreement_lmp(truth, prd):
-    return he.d1_p(prd, truth)
+def root_mean_square_error(truth, prd):
+    return he.rmse(prd, truth)
 
 
 def mean_absolute_percentage_error(truth, prd):
