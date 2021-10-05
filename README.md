@@ -1,9 +1,21 @@
-# ML_multi_site
 
-The ML modeling framework for multiple sites across the Pacific Northwest, U.S.
+# DNN-based air quality predictions
 
-``python main.py --flag2rf 0 --flagdensexl 0 --flagdensel 0 --flagdensem 0 --flagdenses 0 --flagdensexs 0 --flagnasmlp 1 --flagnasres 1''
+The model predicts air quality prediction based on Dense Neural Network, with varying # of layers. It compares the DNN-based prediction against the random forest-based and CMAQ predictions.  It uses the AQS observation data from the Pacific Northwest, U.S.
 
-``python main.py --wrf_path '/home/doris/Data/AQS/WRF' --aqs_path '/home/doris/Data/AQS/aqs' ''
+The below is how to execute our model:
 
-``python main.py --wrf_path '/media/doris/Data/WRF' --aqs_path '/media/doris/Data/AQS-US' ''
+```
+python main.py --flag2rf 0 --flagdensexl 0 --flagdensel 0 --flagdensem 0 --flagdenses 0 --flagdensexs 0 --flagnasmlp 1 --flagnasres 1
+```
+
+For example:
+
+```
+python main.py --wrf_path put_WRF_data_path  --aqs_path put_AQS_data_path  --out_path put_output_path
+```
+
+Important note that WRF and AQS data are pre-processed data, not the original/raw data format. 
+
+
+
