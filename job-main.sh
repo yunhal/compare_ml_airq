@@ -17,4 +17,4 @@ module load cuda/11.1
 root=/bigdata/casus/atmos/play/DLair/code-compare-ml-dl  #/bigdata/casus/atmos/DL_atm_model/projects/code/code-compare-ml-dl
 cd $root
 
-python main.py --wrf_path ./data/WRF --aqs_path ./data/AQS --out_path runoutput_yhl
+python main.py --wrf_path ./data/WRF --aqs_path ./data/AQS --out_path runoutput

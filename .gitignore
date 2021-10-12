@@ -1,0 +1,10 @@
+data/
+log/
+slurm*txt
+runoutput/
+plot/
+**/.ipynb_checkpoints/
+forecast/__pycache__/
+gitignore.txt
+review_eval_test.ipynb
+review_feature_test.ipynb

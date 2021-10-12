@@ -12,6 +12,7 @@ import lime
 import lime.lime_tabular
 import sklearn.preprocessing
 import scipy.stats
+from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 
 sys.path.append('../code-air-forecast')
@@ -68,13 +69,13 @@ parser.add_argument('--flagdensel', type=int, required=False, default=1, help='f
 parser.add_argument('--flagdensem', type=int, required=False, default=1, help='flag for running dense model')
 parser.add_argument('--flagdenses', type=int, required=False, default=1, help='flag for running dense model')
 parser.add_argument('--flagdensexs', type=int, required=False, default=1, help='flag for running dense model')
-parser.add_argument('--logpath',  type=str, required=False, default='./log_yhl/compare.log', help='log file path')
+parser.add_argument('--logpath',  type=str, required=False, default='./log/compare.log', help='log file path')
 
 parser.add_argument('--plotpath',  type=str, required=False, default='./plot', help='plot path')
-parser.add_argument('--pipeloadwrf',  type=int, required=False, default=1, help='pipeline load wrf data')
-parser.add_argument('--pipeloadaqs',  type=int, required=False, default=1, help='pipeline load aqs data')
-parser.add_argument('--pipeloadcmaq',  type=int, required=False, default=1, help='pipeline load cmaq data')
-parser.add_argument('--pipeml',  type=int, required=False, default=1, help='pipeline machine learning')
+parser.add_argument('--pipeloadwrf',  type=int, required=False, default=0, help='pipeline load wrf data')
+parser.add_argument('--pipeloadaqs',  type=int, required=False, default=0, help='pipeline load aqs data')
+parser.add_argument('--pipeloadcmaq',  type=int, required=False, default=0, help='pipeline load cmaq data')
+parser.add_argument('--pipeml',  type=int, required=False, default=0, help='pipeline machine learning')
 
 parser.add_argument('--pipeploteval',  type=int, required=False, default=1, help='pipeline plot prediction evaluation')
 parser.add_argument('--pipeplotimportance',  type=int, required=False, default=1, help='pipeline plot feature importance')
@@ -502,6 +503,7 @@ def review_evaluation(sites, sitename, out_path, saveprefix, plotpath):
     full_review_ls = []
 
     for efn in eval_ls:
+        
         info = os.path.basename(efn)
         info_ls = info.replace('.csv', '').split('-')
         header, model, measurement, site_id, season = tuple(info_ls)
@@ -511,7 +513,7 @@ def review_evaluation(sites, sitename, out_path, saveprefix, plotpath):
         d = forecast.evaluations.index_of_agreement_d(dfx['truth'], dfx['prediction'])
         nme = forecast.evaluations.normalized_mean_error(dfx['truth'], dfx['prediction'])
         nmb = forecast.evaluations.normalized_mean_bias(dfx['truth'], dfx['prediction'])
-        rsme = forecast.evaluations.root_mean_square_error(dfx['truth'], dfx['prediction'])
+        rmse = forecast.evaluations.root_mean_square_error(dfx['truth'], dfx['prediction'])
         r2 = forecast.evaluations.coefficient_of_determination_r2(dfx['truth'], dfx['prediction'])
         mape = forecast.evaluations.mean_absolute_percentage_error(dfx['truth'], dfx['prediction'])
         item = {
@@ -530,7 +532,10 @@ def review_evaluation(sites, sitename, out_path, saveprefix, plotpath):
         full_review_ls.append(item)
 
     df = pandas.DataFrame(full_review_ls)
-    df.to_csv('review-ia.csv')
+    save_name = os.path.join(plotpath, 'statistics_for_allsites_allspecies_allmodels.csv')
+    os.makedirs(os.path.dirname(save_name), exist_ok=True)
+    df.to_csv(save_name)
+    
     models = df['model'].unique()
     measurements = df['measurement'].unique()
     seasons = df['season'].unique()
@@ -545,33 +550,48 @@ def review_evaluation(sites, sitename, out_path, saveprefix, plotpath):
             for modeli in models:
                 dfi = df.loc[(df['model'] == modeli) & (df['measurement'] == mi) & (df['season'] == si)]
                 dfi = dfi.set_index('site')
-                col_names = ['d', 'nmb', 'nme', 'rmse', 'r2', 'mape']
+                col_names = ['d', 'nmb', 'nme', 'rmse', 'r2','mape']  #mape has many inf and causing problem? 
                 colmap = {}
                 for ci in col_names:
                     colmap[ci] = modeli + '-' + ci
                 dfi = dfi.rename(columns=colmap)
-                ls.append(dfi.get([modeli]))
-                dfsize = dfi.get(['samples'])
-                save_name = os.path.join(plotpath, 'eval-{}-{}-{}-size.csv'.format(mi, si, modeli))
-                os.makedirs(os.path.dirname(save_name), exist_ok=True)
-                dfsize.to_csv(save_name)
-            dfp = pandas.concat(ls, axis=1)
-            dfp = dfp.sort_values(by=[models[0]])
 
-            dfp.plot.bar(figsize=(30,12),  alpha=0.75, rot=90)
-            plt.tight_layout()
-            save_name = os.path.join(plotpath, 'eval-{}-{}.png'.format(mi, si))
-            os.makedirs(os.path.dirname(save_name), exist_ok=True)
-            plt.savefig(save_name)
+                dfsize = dfi.get(['samples'])
+                
+                ## ls is causing a problem and I am not sure what is actual purpose doing this. so all commented out 
+                ext_col=[colmap[x] for x in col_names] 
+                ls.append(dfi.get(ext_col))           #yunha       ls.append(dfi.get([modeli]))
+            
+                # not useful save_name = os.path.join(plotpath, 'eval-{}-{}-{}-size.csv'.format(mi, si, modeli))
+                # not useful os.makedirs(os.path.dirname(save_name), exist_ok=True)
+
+                # not useful dfsize.to_csv(save_name)
+            dfp = pandas.concat(ls, axis=1)
+            
+            # save all model performances for all metrics
             save_name = os.path.join(plotpath, 'eval-{}-{}.csv'.format(mi, si))
             os.makedirs(os.path.dirname(save_name), exist_ok=True)
             dfp.to_csv(save_name)
-            plot_index[(si, mi)] = dfp.index
-
-    return plot_index
+                              
+            # plot all model performance for each metric
+            save_name = os.path.join(plotpath, 'eval-{}-{}.pdf'.format(mi, si))
+            os.makedirs(os.path.dirname(save_name), exist_ok=True)
+            pdf = PdfPages(save_name)
+            plt.rcParams.update({'font.size': 26}) # must set in top
+            for ci in col_names:
+                dfp_stat=dfp.filter(like='-' +ci)
+                print(dfp_stat.columns, ci)
+                dfp_stat = dfp_stat.sort_values(by=[models[0]+ '-' +ci])
+                ax = dfp_stat.plot.bar(figsize=(30,12),  alpha=0.75, rot=90, title= mi+" in "+si, fontsize=16)
+                ax.set_ylabel(ci,fontdict={'fontsize':26})
+                pdf.savefig()
+            pdf.close()
+            plt.close()
+    return
 
 
 def review_feature_importance(sites, sitename, out_path, saveprefix, plotpath, plot_index=None):
+
     feature_importance_ls = forecast.fileio.get_files(out_path, pattern=saveprefix+'*.json')
 
     full_review_ls = []
@@ -580,29 +600,42 @@ def review_feature_importance(sites, sitename, out_path, saveprefix, plotpath, p
     for fifn in feature_importance_ls:
         info = os.path.basename(fifn)
         info_ls = info.replace('.json', '').split('-')
+        #print("review feature impo 1 ", info, info_ls, fifn)
         header1, header2, model, measurement, site_id, season = tuple(info_ls)
-
+        
+        #print("review feature impo 2 ", header1, header2, model, measurement, site_id, season)
+        
         site_name = sites.loc[site_id, sitename]
- 
+        print("feature info", site_name)
         d = forecast.fileio.load_json(fifn)
         features = list(d.keys())
+        #print('debug feature impo ', d.keys(), features )
         d.update({
             'site': site_name,
             'model': model,
             'measurement': measurement,
             'season': season,
         })
+        
+        #print('debug feature impo after updated', d.keys(), features )
+            
         full_review_ls.append(d)
-
+        
     df = pandas.DataFrame(full_review_ls)
-    df.to_csv('review-feature-importance.csv')
+    save_name = os.path.join(plotpath, 'review-feature-importance.csv')
+    os.makedirs(os.path.dirname(save_name), exist_ok=True)
+    df.to_csv(save_name)
+
     models = df['model'].unique()
     measurements = df['measurement'].unique()
     seasons = df['season'].unique()
 
     features.sort()
     models.sort()
-
+    
+    # lime is not used, so remove it. 
+    features.remove('lime')
+    
     for si in seasons:
         for mi in measurements:
             ls = []
@@ -612,28 +645,42 @@ def review_feature_importance(sites, sitename, out_path, saveprefix, plotpath, p
                 colmap = {}
                 feature_cols = []
                 for fi in features:
-                    v = fi + '-' + modeli
+                    v = modeli + '-' + fi
                     colmap[fi] = v
                     feature_cols.append(v)
                 dfi = dfi.rename(columns=colmap)
-                dfi.plot.bar(figsize=(30,12), alpha=0.75, rot=90)
-                plt.tight_layout()
-                save_name = os.path.join(plotpath, 'featureimportance-{}-{}-{}.png'.format(modeli, mi, si))
-                os.makedirs(os.path.dirname(save_name), exist_ok=True)
-                plt.savefig(save_name)
+                print("review_eval dfi ",dfi.keys())
                 ls.append(dfi.get(feature_cols))
             dfp = pandas.concat(ls, axis=1)
-            if plot_index is not None:
-                dfp = dfp.reindex(plot_index[(si, mi)])
-            dfp.plot.bar(stacked=True, figsize=(30,12), alpha=0.75, rot=90)
-            plt.tight_layout()
-            save_name = os.path.join(plotpath, 'featureimportance-{}-{}.png'.format(mi, si))
+            
+            print("review_eval dfp ",dfp.keys())
+            
+            # save all model importance 
+            # off save_name = os.path.join(plotpath, 'eval-{}-{}.csv'.format(mi, si))
+            # off os.makedirs(os.path.dirname(save_name), exist_ok=True)
+            # off dfp.to_csv(save_name)
+            
+            save_name = os.path.join(plotpath, 'featureimportance-{}-{}.pdf'.format(mi, si))
             os.makedirs(os.path.dirname(save_name), exist_ok=True)
-            plt.savefig(save_name)
-            save_name = os.path.join(plotpath, 'featureimportance-{}-{}.csv'.format(mi, si))
-            os.makedirs(os.path.dirname(save_name), exist_ok=True)
-            dfp.to_csv(save_name)
+            pdf = PdfPages(save_name)
+            plt.rcParams.update({'font.size': 16}) # must set in top
+            
+            for fi in dfp:
+                #print(fi)
+                dfp_feature= dfp[fi].apply(pandas.Series)
+                ax=dfp_feature.plot.bar(figsize=(30,12),  alpha=0.75, rot=90, title= mi+" in "+si, fontsize=20)
+                ax.set_ylabel(fi,fontdict={'fontsize':26})
+                pdf.savefig()   
+                
+                normalized_df = dfp_feature.apply(lambda x: x / sum(x), axis=1)
+                normalized_df = normalized_df.sort_values(by=['lastday8havg'])
+                ax=normalized_df.plot.bar(figsize=(30,12),  alpha=0.75, rot=90, fontsize=20,stacked=True)
+                ax.set_ylabel("normalized "+fi,fontdict={'fontsize':26})
+                pdf.savefig()    
+            pdf.close()
+            plt.close()
 
+                            
 
 def ml_pipeline(sites, wrfpattern, o3_pattern, pm_pattern, out_path, pattern, flags, saveprefixes, replace=True):
     tworf_model_funcs = [
@@ -713,7 +760,7 @@ def main(args):
     save_prefixes = ('feature-statistics', 'prd', 'permuted-train', 'permuted-test', 'mae', 'feature-importance')
     flags = (args.flag2rf, args.flagdensexl, args.flagdensel, args.flagdensem, args.flagdenses, args.flagdensexs)
     plot_index = None
-
+    
     if args.pipeloadwrf:
         load_wrf(sites, args.wrf_path, args.wrf_index, args.wrf_indexfmt, args.out_path, args.wrffilepattern, replace=False)
 
@@ -724,11 +771,12 @@ def main(args):
     if args.pipeloadcmaq:
         load_cmaq_o3(sites, args.cmaq_path, args.cmaq_o3header, args.cmaq_index, args.out_path, args.cmaqo3pattern, args.cmaq_layer, replace=False)
         load_cmaq_pm25(sites, args.cmaq_path, args.cmaq_pm25header, args.cmaq_index, args.out_path, args.cmaqpm25pattern, args.cmaq_layer, replace=False)
-
+        
     if args.pipeml:
         ml_pipeline(sites, args.wrffilepattern, args.o3filepattern, args.pm25filepattern, args.out_path, args.inputfilepattern, flags, save_prefixes, replace=False)
 
     if args.pipeploteval:
+        print('review eval passing vars are ', args.sitename, save_prefixes[1])
         plot_index = review_evaluation(sites, args.sitename, args.out_path, save_prefixes[1], args.plotpath)
 
     if args.pipeplotimportance:
