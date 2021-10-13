@@ -20,7 +20,7 @@ import numpy as np
 from scipy.stats import gmean, rankdata
 import warnings
 
-__all__ = ['me', 'mae', 'mse', 'mle', 'male', 'msle', 'mde', 'mdae', 'mdse', 'ed', 'ned', 'rmse',
+__all__ = ['nme', 'nmb','me', 'mae', 'mse', 'mle', 'male', 'msle', 'mde', 'mdae', 'mdse', 'ed', 'ned', 'rmse',
            'rmsle', 'nrmse_range', 'nrmse_mean', 'nrmse_iqr', 'irmse', 'mase', 'r_squared',
            'pearson_r', 'spearman_r', 'acc', 'mape', 'mapd', 'maape', 'smape1', 'smape2', 'd', 'd1',
            'dmod', 'drel', 'dr', 'watt_m', 'mb_r', 'nse', 'nse_mod', 'nse_rel', 'kge_2009',
@@ -35,6 +35,32 @@ __all__ = ['me', 'mae', 'mse', 'mle', 'male', 'msle', 'mde', 'mdae', 'mdse', 'ed
 #                            General and Hydrological Error Metrics                                #
 ####################################################################################################
 
+### YUNHA - add NMB and NME 
+def nme(simulated_array, observed_array, replace_nan=None, replace_inf=None,
+       remove_neg=False, remove_zero=False):
+    # Treating missing values
+    simulated_array, observed_array = treat_values(simulated_array, observed_array,
+                                                   replace_nan=replace_nan,
+                                                   replace_inf=replace_inf,
+                                                   remove_neg=remove_neg,
+                                                   remove_zero=remove_zero)
+    
+    a = np.abs(simulated_array - observed_array)
+    return 100 * np.sum(a) /np.sum(observed_array)
+
+
+def nmb(simulated_array, observed_array, replace_nan=None, replace_inf=None,
+       remove_neg=False, remove_zero=False):
+    # Treating missing values
+    simulated_array, observed_array = treat_values(simulated_array, observed_array,
+                                                   replace_nan=replace_nan,
+                                                   replace_inf=replace_inf,
+                                                   remove_neg=remove_neg,
+                                                   remove_zero=remove_zero)
+    a = np.sum(simulated_array - observed_array)
+    return 100 * a / np.sum(observed_array)
+
+###
 
 def me(simulated_array, observed_array, replace_nan=None, replace_inf=None,
        remove_neg=False, remove_zero=False):
