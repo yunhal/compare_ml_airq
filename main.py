@@ -54,7 +54,7 @@ parser.add_argument('--cmaq_indexfmt', type=str, required=False,default="%Y-%m-%
 parser.add_argument('--cmaq_target', type=str, required=False, default="sample_measurement", help='AQS data measurement column name')
 parser.add_argument('--cmaq_layer', type=int, required=False,default=3, help='AQS data measurement column name')
 
-parser.add_argument('--out_path', type=str, required=False, default='./runoutput', help='output data path')
+parser.add_argument('--processed_data_path', type=str, required=False, default='./processed_data', help='processed data path')
 parser.add_argument('--wrffilepattern', type=str, required=False, default='wrf{}.csv', help='data file name pattern for WRF')
 parser.add_argument('--o3filepattern', type=str, required=False, default='aqso3{}.csv', help='data file name pattern for AQS o3')
 parser.add_argument('--pm25filepattern', type=str, required=False, default='aqspm{}.csv', help='data file name pattern for AQS pm2.5')
@@ -62,6 +62,14 @@ parser.add_argument('--inputfilepattern', type=str, required=False, default='inp
 parser.add_argument('--cmaqo3pattern', type=str, required=False, default="cmaqo3{}.csv", help='AQS data measurement column name')
 parser.add_argument('--cmaqpm25pattern', type=str, required=False, default="cmaqpm{}.csv", help='AQS data measurement column name')
 
+parser.add_argument('--logpath',  type=str, required=False, default='./log/compare.log', help='log file path')
+
+parser.add_argument('--pipeloadwrf',  type=int, required=False, default=0, help='pipeline load wrf data')
+parser.add_argument('--pipeloadaqs',  type=int, required=False, default=0, help='pipeline load aqs data')
+parser.add_argument('--pipeloadcmaq',  type=int, required=False, default=0, help='pipeline load cmaq data')
+
+parser.add_argument('--out_path', type=str, required=False, default='./modeloutput', help='output data path')
+parser.add_argument('--pipeml',  type=int, required=False, default=1, help='pipeline machine learning')
 parser.add_argument('--flag2rf', type=int, required=False, default=1, help='flag for running 2rf model')
 parser.add_argument('--flagautoml', type=int, required=False, default=0, help='flag for running nas model')
 parser.add_argument('--flagdensexl', type=int, required=False, default=1, help='flag for running dense model')
@@ -69,14 +77,9 @@ parser.add_argument('--flagdensel', type=int, required=False, default=1, help='f
 parser.add_argument('--flagdensem', type=int, required=False, default=1, help='flag for running dense model')
 parser.add_argument('--flagdenses', type=int, required=False, default=1, help='flag for running dense model')
 parser.add_argument('--flagdensexs', type=int, required=False, default=1, help='flag for running dense model')
-parser.add_argument('--logpath',  type=str, required=False, default='./log/compare.log', help='log file path')
+
 
 parser.add_argument('--plotpath',  type=str, required=False, default='./plot', help='plot path')
-parser.add_argument('--pipeloadwrf',  type=int, required=False, default=0, help='pipeline load wrf data')
-parser.add_argument('--pipeloadaqs',  type=int, required=False, default=0, help='pipeline load aqs data')
-parser.add_argument('--pipeloadcmaq',  type=int, required=False, default=0, help='pipeline load cmaq data')
-parser.add_argument('--pipeml',  type=int, required=False, default=0, help='pipeline machine learning')
-
 parser.add_argument('--pipeploteval',  type=int, required=False, default=1, help='pipeline plot prediction evaluation')
 parser.add_argument('--pipeplotimportance',  type=int, required=False, default=1, help='pipeline plot feature importance')
 
@@ -133,7 +136,7 @@ def rename_wrf(df):
     return df
 
 
-def load_csv_data_from_path(sites, in_path, in_index, in_indexfmt, out_path, savepattern, replace=True):
+def load_csv_data_from_path(sites, in_path, in_index, in_indexfmt, processed_data_path, savepattern, replace=True):
     csv_fls = forecast.fileio.get_files(in_path, pattern='*.csv')
     file_dict = {}
     for index, row in sites.iterrows():
@@ -147,7 +150,7 @@ def load_csv_data_from_path(sites, in_path, in_index, in_indexfmt, out_path, sav
                     file_dict[site_id] = [(basefn, fn)]
 
     for site_id in file_dict:
-        saveas = os.path.join(out_path, savepattern.format(site_id))
+        saveas = os.path.join(processed_data_path, savepattern.format(site_id))
         process_tag = False
         if replace:
             process_tag = True
@@ -171,7 +174,7 @@ def load_csv_data_from_path(sites, in_path, in_index, in_indexfmt, out_path, sav
 
 
 
-def load_hdf5_data_from_path(sites, in_path, key_filter, in_index, out_path, savepattern, layers=3, replace=True):
+def load_hdf5_data_from_path(sites, in_path, key_filter, in_index, processed_data_path, savepattern, layers=3, replace=True):
     hdf5_fls = forecast.fileio.get_hdf5_key(in_path, layers=layers)
     file_dict = {}
     for index, row in sites.iterrows():
@@ -186,7 +189,7 @@ def load_hdf5_data_from_path(sites, in_path, key_filter, in_index, out_path, sav
                         file_dict[site_id] = [(basefn, fn)]
 
     for site_id in file_dict:
-        saveas = os.path.join(out_path, savepattern.format(site_id))
+        saveas = os.path.join(processed_data_path, savepattern.format(site_id))
         process_tag = False
         if replace:
             process_tag = True
@@ -207,27 +210,27 @@ def load_hdf5_data_from_path(sites, in_path, key_filter, in_index, out_path, sav
     return
 
 
-def load_wrf(sites, wrf_path, wrf_index, wrf_indexfmt, out_path, pattern, replace=True):
-    for df, saveas in load_csv_data_from_path(sites, wrf_path, wrf_index, wrf_indexfmt, out_path, pattern, replace):
+def load_wrf(sites, wrf_path, wrf_index, wrf_indexfmt, processed_data_path, pattern, replace=True):
+    for df, saveas in load_csv_data_from_path(sites, wrf_path, wrf_index, wrf_indexfmt, processed_data_path, pattern, replace):
         df = rename_wrf(df)
-        os.makedirs(out_path, exist_ok=True)
+        os.makedirs(processed_data_path, exist_ok=True)
         df.to_csv(saveas)
 
 
-def load_cmaq_o3(sites, cmaq_path, cmaq_o3, cmaq_index, out_path, pattern, layer=3, replace=True):
-    for df, saveas in load_hdf5_data_from_path(sites, cmaq_path, cmaq_o3, cmaq_index, out_path, pattern, layer, replace):
-        os.makedirs(out_path, exist_ok=True)
+def load_cmaq_o3(sites, cmaq_path, cmaq_o3, cmaq_index, processed_data_path, pattern, layer=3, replace=True):
+    for df, saveas in load_hdf5_data_from_path(sites, cmaq_path, cmaq_o3, cmaq_index, processed_data_path, pattern, layer, replace):
+        os.makedirs(processed_data_path, exist_ok=True)
         df.to_csv(saveas)
 
 
-def load_cmaq_pm25(sites, cmaq_path, cmaq_pm25, cmaq_index, out_path, pattern, layer=3, replace=True):
-    for df, saveas in load_hdf5_data_from_path(sites, cmaq_path, cmaq_pm25, cmaq_index, out_path, pattern, layer, replace):
-        os.makedirs(out_path, exist_ok=True)
+def load_cmaq_pm25(sites, cmaq_path, cmaq_pm25, cmaq_index, processed_data_path, pattern, layer=3, replace=True):
+    for df, saveas in load_hdf5_data_from_path(sites, cmaq_path, cmaq_pm25, cmaq_index, processed_data_path, pattern, layer, replace):
+        os.makedirs(processed_data_path, exist_ok=True)
         df.to_csv(saveas)
 
 
-def load_aqs_o3(sites, aqs_path, subpath, aqs_index, aqs_indexfmt, target_col, out_path, pattern, replace=True):
-    for df, saveas in load_csv_data_from_path(sites, os.path.join(aqs_path, subpath), aqs_index, aqs_indexfmt, out_path, pattern, replace):
+def load_aqs_o3(sites, aqs_path, subpath, aqs_index, aqs_indexfmt, target_col, processed_data_path, pattern, replace=True):
+    for df, saveas in load_csv_data_from_path(sites, os.path.join(aqs_path, subpath), aqs_index, aqs_indexfmt, processed_data_path, pattern, replace):
         df = df.get([target_col])
         df = df.rename(columns={target_col:'value'})
         df['date'] = [i.date() for i in df.index]
@@ -252,12 +255,12 @@ def load_aqs_o3(sites, aqs_path, subpath, aqs_index, aqs_indexfmt, target_col, o
             lastdayavg.append(v)
         df['lastday8havg'] = lastdayavg
         df.index = df.index.rename('index')
-        os.makedirs(out_path, exist_ok=True)
+        os.makedirs(processed_data_path, exist_ok=True)
         df.to_csv(saveas)
 
 
-def load_aqs_pm25(sites, aqs_paths, subpath, aqs_index, aqs_indexfmt, target_col, out_path, pattern, replace=True):
-    for df, saveas in load_csv_data_from_path(sites, os.path.join(aqs_paths, subpath), aqs_index, aqs_indexfmt, out_path, pattern, replace):
+def load_aqs_pm25(sites, aqs_paths, subpath, aqs_index, aqs_indexfmt, target_col, processed_data_path, pattern, replace=True):
+    for df, saveas in load_csv_data_from_path(sites, os.path.join(aqs_paths, subpath), aqs_index, aqs_indexfmt, processed_data_path, pattern, replace):
         df = df.get([target_col])
         df = df.rename(columns={target_col:'value'})
         df['date'] = [i.date() for i in df.index]
@@ -281,15 +284,15 @@ def load_aqs_pm25(sites, aqs_paths, subpath, aqs_index, aqs_indexfmt, target_col
             lastdayavg.append(v)
         df['lastday8havg'] = lastdayavg
         df.index = df.index.rename('index')
-        os.makedirs(out_path, exist_ok=True)
+        os.makedirs(processed_data_path, exist_ok=True)
         df.to_csv(saveas)
 
 
-def load_model_input(sites, pollutant, wrf_index, wrfpattern, pollutent_index, pollutant_pattern, out_path, pattern, split_seasons=False):
+def load_model_input(sites, pollutant, wrf_index, wrfpattern, pollutent_index, pollutant_pattern, processed_data_path, pattern, split_seasons=False):
     print('load_model_input')
     for index, row in sites.iterrows():
         site_id = index
-        input_fn = os.path.join(out_path, pattern.format(pollutant,site_id))
+        input_fn = os.path.join(processed_data_path, pattern.format(pollutant,site_id))
         input_df = None
         if os.path.exists(input_fn):
             input_df = forecast.fileio.load_csv(input_fn, index_col='index')
@@ -298,8 +301,8 @@ def load_model_input(sites, pollutant, wrf_index, wrfpattern, pollutent_index, p
             logging.info('load intermedia data for site {} {}, shape={}'.format(site_id, pollutant, input_df.shape))
             forecast.convertfmt.parse_datetime_index(input_df, fmt="%Y-%m-%d %H:%M:%S")
         else:
-            wrf_fn = os.path.join(out_path, wrfpattern.format(site_id))
-            plu_fn = os.path.join(out_path, pollutant_pattern.format(site_id))
+            wrf_fn = os.path.join(processed_data_path, wrfpattern.format(site_id))
+            plu_fn = os.path.join(processed_data_path, pollutant_pattern.format(site_id))
             wrf = forecast.fileio.load_csv(wrf_fn, index_col=wrf_index)
             plu = forecast.fileio.load_csv(plu_fn, index_col=pollutent_index)
             if wrf is None:
@@ -360,7 +363,7 @@ def load_model_input(sites, pollutant, wrf_index, wrfpattern, pollutent_index, p
     return
 
 
-def train_test_split(dfx, dsy, sep_factor=0.5):
+def train_test_split(dfx, dsy, sep_factor=0.65):
     ns, nf = dfx.shape
     train_len = int(ns * sep_factor)
     min_max_scaler = sklearn.preprocessing.MinMaxScaler()
@@ -396,11 +399,11 @@ def lime_scores(x_train, x_test, time_test, feature_names, target_name, model, p
     return feature_scores
 
 
-def evaluate_method(sites, pollutant, wrf_index, wrfpattern, pollutent_index, pollutant_pattern, out_path, pattern, split_seasons, model_funcs, epochs, batch_size, verbose, saveprefixes, replace=True):
+def evaluate_method(sites, pollutant, wrf_index, wrfpattern, pollutent_index, pollutant_pattern, processed_data_path, pattern, out_path, split_seasons, model_funcs, epochs, batch_size, verbose, saveprefixes, replace=True):
     print('evaluate_method', model_funcs)
     mname, create_model, train_func, predict_func = model_funcs
     saveprefix_feature_statistics, saveprefix_prd, saveprefix_permute_train, saveprefix_permute_test, saveprefix_mae, saveprefix_importance = saveprefixes
-    for dfx, dsy, datatag, site_id in load_model_input(sites, pollutant, wrf_index, wrfpattern, pollutent_index, pollutant_pattern, out_path, pattern, split_seasons=split_seasons):
+    for dfx, dsy, datatag, site_id in load_model_input(sites, pollutant, wrf_index, wrfpattern, pollutent_index, pollutant_pattern, processed_data_path, pattern, split_seasons=split_seasons):
         print('loop evaluate_method', model_funcs, site_id)
         feature_names = list(dfx)
         x_train, y_train, x_test, y_test, train_len, scaler = train_test_split(dfx,dsy)
@@ -583,6 +586,7 @@ def review_evaluation(sites, sitename, out_path, saveprefix, plotpath):
                 print(dfp_stat.columns, ci)
                 dfp_stat = dfp_stat.sort_values(by=[models[0]+ '-' +ci])
                 ax = dfp_stat.plot.bar(figsize=(30,12),  alpha=0.75, rot=90, title= mi+" in "+si, fontsize=16)
+                plt.legend(bbox_to_anchor=(1.0, 1.0))
                 ax.set_ylabel(ci,fontdict={'fontsize':26})
                 pdf.savefig()
             pdf.close()
@@ -663,26 +667,39 @@ def review_feature_importance(sites, sitename, out_path, saveprefix, plotpath, p
             save_name = os.path.join(plotpath, 'featureimportance-{}-{}.pdf'.format(mi, si))
             os.makedirs(os.path.dirname(save_name), exist_ok=True)
             pdf = PdfPages(save_name)
+            
+            save_name2 = os.path.join(plotpath, 'normalized_featureimportance-{}-{}.pdf'.format(mi, si))
+            os.makedirs(os.path.dirname(save_name2), exist_ok=True)
+            pdf_n = PdfPages(save_name2)
+            
             plt.rcParams.update({'font.size': 16}) # must set in top
             
             for fi in dfp:
                 #print(fi)
                 dfp_feature= dfp[fi].apply(pandas.Series)
-                ax=dfp_feature.plot.bar(figsize=(30,12),  alpha=0.75, rot=90, title= mi+" in "+si, fontsize=20)
-                ax.set_ylabel(fi,fontdict={'fontsize':26})
+                
+                # sorting rows by the sum of columns
+                dfp_feature["sum_column"]= dfp_feature.sum(axis=1)
+                dfp_feature = dfp_feature.sort_values("sum_column", ascending=True)
+                dfp_feature = dfp_feature.drop("sum_column", axis=1)
+        
+                ax=dfp_feature.plot.bar(figsize=(30,12),  alpha=0.75, rot=90, title= fi+ " "+ mi+" in "+si, fontsize=20,stacked=True,ylim=[-0.1, 1])
+                plt.legend(bbox_to_anchor=(1.0, 1.0))
+                ax.set_ylabel("feature importance",fontdict={'fontsize':26})
                 pdf.savefig()   
                 
                 normalized_df = dfp_feature.apply(lambda x: x / sum(x), axis=1)
-                normalized_df = normalized_df.sort_values(by=['lastday8havg'])
-                ax=normalized_df.plot.bar(figsize=(30,12),  alpha=0.75, rot=90, fontsize=20,stacked=True)
-                ax.set_ylabel("normalized "+fi,fontdict={'fontsize':26})
-                pdf.savefig()    
+                ax=normalized_df.plot.bar(figsize=(30,12),  alpha=0.75, rot=90, title= fi+ " "+ mi+" in "+si, fontsize=20,stacked=True,ylim=[0,1])
+                plt.legend(bbox_to_anchor=(1.0, 1.0))
+                ax.set_ylabel("normalized feature importance",fontdict={'fontsize':26})
+                pdf_n.savefig()    
             pdf.close()
+            pdf_n.close()
             plt.close()
 
                             
 
-def ml_pipeline(sites, wrfpattern, o3_pattern, pm_pattern, out_path, pattern, flags, saveprefixes, replace=True):
+def ml_pipeline(sites, wrfpattern, o3_pattern, pm_pattern, processed_data_path, pattern, out_path, flags, saveprefixes, replace=True):
     tworf_model_funcs = [
         '2rf',
         forecast.modelsln.twostage_randomforest,
@@ -728,18 +745,18 @@ def ml_pipeline(sites, wrfpattern, o3_pattern, pm_pattern, out_path, pattern, fl
         for split_seasons in [False, True]:
             # 2rf
             if flag2rf:
-                evaluate_method(sites, pollutant,   'date', wrfpattern, 'index', pollutant_pattern, out_path, pattern, split_seasons, tworf_model_funcs,     None, None, None, saveprefixes,     replace=replace)
+                evaluate_method(sites, pollutant,   'date', wrfpattern, 'index', pollutant_pattern, processed_data_path, pattern, out_path, split_seasons, tworf_model_funcs,     None, None, None, saveprefixes,     replace=replace)
             # dense models
             if flagdensexl:
-                evaluate_method(sites, pollutant,   'date', wrfpattern, 'index', pollutant_pattern, out_path, pattern, split_seasons, dense_model_funcs_xl,  100,  None, None, saveprefixes,     replace=replace)
+                evaluate_method(sites, pollutant,   'date', wrfpattern, 'index', pollutant_pattern, processed_data_path, pattern, out_path, split_seasons, dense_model_funcs_xl,  100,  None, None, saveprefixes,     replace=replace)
             if flagdensel:
-                evaluate_method(sites, pollutant,   'date', wrfpattern, 'index', pollutant_pattern, out_path, pattern, split_seasons, dense_model_funcs_l,   100,  None, None, saveprefixes,     replace=replace)
+                evaluate_method(sites, pollutant,   'date', wrfpattern, 'index', pollutant_pattern, processed_data_path, pattern, out_path, split_seasons, dense_model_funcs_l,   100,  None, None, saveprefixes,     replace=replace)
             if flagdensem:
-                evaluate_method(sites, pollutant,   'date', wrfpattern, 'index', pollutant_pattern, out_path, pattern, split_seasons, dense_model_funcs_m,   100,  None, None, saveprefixes,     replace=replace)
+                evaluate_method(sites, pollutant,   'date', wrfpattern, 'index', pollutant_pattern, processed_data_path, pattern, out_path, split_seasons, dense_model_funcs_m,   100,  None, None, saveprefixes,     replace=replace)
             if flagdenses:
-                evaluate_method(sites, pollutant,   'date', wrfpattern, 'index', pollutant_pattern, out_path, pattern, split_seasons, dense_model_funcs_s,   100,  None, None, saveprefixes,     replace=replace)
+                evaluate_method(sites, pollutant,   'date', wrfpattern, 'index', pollutant_pattern, processed_data_path, pattern, out_path, split_seasons, dense_model_funcs_s,   100,  None, None, saveprefixes,     replace=replace)
             if flagdensexs:
-                evaluate_method(sites, pollutant,   'date', wrfpattern, 'index', pollutant_pattern, out_path, pattern, split_seasons, dense_model_funcs_xs,  100,  None, None, saveprefixes,     replace=replace)
+                evaluate_method(sites, pollutant,   'date', wrfpattern, 'index', pollutant_pattern, processed_data_path, pattern, out_path, split_seasons, dense_model_funcs_xs,  100,  None, None, saveprefixes,     replace=replace)
 
 
 
@@ -762,21 +779,21 @@ def main(args):
     plot_index = None
     
     if args.pipeloadwrf:
-        load_wrf(sites, args.wrf_path, args.wrf_index, args.wrf_indexfmt, args.out_path, args.wrffilepattern, replace=False)
+        load_wrf(sites, args.wrf_path, args.wrf_index, args.wrf_indexfmt, args.processed_data_path, args.wrffilepattern, replace=False)
 
     if args.pipeloadaqs:
-        load_aqs_o3(sites, args.aqs_path, args.aqs_o3subfolder, args.aqs_index, args.aqs_indexfmt, args.aqs_target, args.out_path, args.o3filepattern, replace=False)
-        load_aqs_pm25(sites, args.aqs_path, args.aqs_pm25subfolder, args.aqs_index, args.aqs_indexfmt, args.aqs_target, args.out_path, args.pm25filepattern, replace=False)
+        load_aqs_o3(sites, args.aqs_path, args.aqs_o3subfolder, args.aqs_index, args.aqs_indexfmt, args.aqs_target, args.processed_data_path, args.o3filepattern, replace=False)
+        load_aqs_pm25(sites, args.aqs_path, args.aqs_pm25subfolder, args.aqs_index, args.aqs_indexfmt, args.aqs_target, args.processed_data_path, args.pm25filepattern, replace=False)
 
     if args.pipeloadcmaq:
-        load_cmaq_o3(sites, args.cmaq_path, args.cmaq_o3header, args.cmaq_index, args.out_path, args.cmaqo3pattern, args.cmaq_layer, replace=False)
-        load_cmaq_pm25(sites, args.cmaq_path, args.cmaq_pm25header, args.cmaq_index, args.out_path, args.cmaqpm25pattern, args.cmaq_layer, replace=False)
+        load_cmaq_o3(sites, args.cmaq_path, args.cmaq_o3header, args.cmaq_index, args.processed_data_path, args.cmaqo3pattern, args.cmaq_layer, replace=False)
+        load_cmaq_pm25(sites, args.cmaq_path, args.cmaq_pm25header, args.cmaq_index, args.processed_data_path, args.cmaqpm25pattern, args.cmaq_layer, replace=False)
         
     if args.pipeml:
-        ml_pipeline(sites, args.wrffilepattern, args.o3filepattern, args.pm25filepattern, args.out_path, args.inputfilepattern, flags, save_prefixes, replace=False)
+        ml_pipeline(sites, args.wrffilepattern, args.o3filepattern, args.pm25filepattern, args.processed_data_path, args.inputfilepattern, args.out_path,flags, save_prefixes, replace=False)
 
     if args.pipeploteval:
-        print('review eval passing vars are ', args.sitename, save_prefixes[1])
+        #print('review eval passing vars are ', args.sitename, save_prefixes[1])
         plot_index = review_evaluation(sites, args.sitename, args.out_path, save_prefixes[1], args.plotpath)
 
     if args.pipeplotimportance:
