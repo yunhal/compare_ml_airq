@@ -24,7 +24,7 @@ def train(model, X_train, y_train, epochs, batch_size, verbose, train_func=None,
             if mname == '2randomforest':
                 res = train_func(model, X_train, y_train, threshold=0.02)
             else:
-                res = train_func(model, X_train, y_train, epochs)
+                res = train_func(model, X_train, y_train, epochs) # For DNN models
         else:
             res = train_func(model, X_train, y_train, epochs)
 

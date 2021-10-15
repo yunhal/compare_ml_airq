@@ -69,7 +69,8 @@ parser.add_argument('--pipeloadaqs',  type=int, required=False, default=0, help=
 parser.add_argument('--pipeloadcmaq',  type=int, required=False, default=0, help='pipeline load cmaq data')
 
 parser.add_argument('--out_path', type=str, required=False, default='./modeloutput', help='output data path')
-parser.add_argument('--pipeml',  type=int, required=False, default=1, help='pipeline machine learning')
+parser.add_argument('--pipeml',  type=int, required=False, default=0, help='pipeline machine learning')
+
 parser.add_argument('--flag2rf', type=int, required=False, default=1, help='flag for running 2rf model')
 parser.add_argument('--flagautoml', type=int, required=False, default=0, help='flag for running nas model')
 parser.add_argument('--flagdensexl', type=int, required=False, default=1, help='flag for running dense model')
@@ -80,8 +81,8 @@ parser.add_argument('--flagdensexs', type=int, required=False, default=1, help='
 
 
 parser.add_argument('--plotpath',  type=str, required=False, default='./plot', help='plot path')
-parser.add_argument('--pipeploteval',  type=int, required=False, default=1, help='pipeline plot prediction evaluation')
-parser.add_argument('--pipeplotimportance',  type=int, required=False, default=1, help='pipeline plot feature importance')
+parser.add_argument('--pipeploteval',  type=int, required=False, default=0, help='pipeline plot prediction evaluation')
+parser.add_argument('--pipeplotimportance',  type=int, required=False, default=0, help='pipeline plot feature importance')
 
 
 class Predictor(object):
