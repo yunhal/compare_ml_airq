@@ -85,6 +85,10 @@ parser.add_argument('--pipeploteval',  type=int, required=False, default=0, help
 parser.add_argument('--pipeplotimportance',  type=int, required=False, default=0, help='pipeline plot feature importance')
 
 
+parser.add_argument('--preprocessing',  type=str, required=False, default='minmax', help='preprocessing method to use, [minmax, minmax_log, quantile]')
+
+global preprocessing
+
 class Predictor(object):
     def __init__(self, model, predict_func):
         self.model = model
@@ -288,12 +292,11 @@ def load_aqs_pm25(sites, aqs_paths, subpath, aqs_index, aqs_indexfmt, target_col
         os.makedirs(processed_data_path, exist_ok=True)
         df.to_csv(saveas)
 
-
-def load_model_input(sites, pollutant, wrf_index, wrfpattern, pollutent_index, pollutant_pattern, processed_data_path, pattern, split_seasons=False):
+def load_model_input(sites, pollutant, wrf_index, wrfpattern, pollutent_index, pollutant_pattern, out_path, pattern, split_seasons=False):
     print('load_model_input')
     for index, row in sites.iterrows():
         site_id = index
-        input_fn = os.path.join(processed_data_path, pattern.format(pollutant,site_id))
+        input_fn = os.path.join(out_path, pattern.format(pollutant,site_id))
         input_df = None
         if os.path.exists(input_fn):
             input_df = forecast.fileio.load_csv(input_fn, index_col='index')
@@ -302,8 +305,8 @@ def load_model_input(sites, pollutant, wrf_index, wrfpattern, pollutent_index, p
             logging.info('load intermedia data for site {} {}, shape={}'.format(site_id, pollutant, input_df.shape))
             forecast.convertfmt.parse_datetime_index(input_df, fmt="%Y-%m-%d %H:%M:%S")
         else:
-            wrf_fn = os.path.join(processed_data_path, wrfpattern.format(site_id))
-            plu_fn = os.path.join(processed_data_path, pollutant_pattern.format(site_id))
+            wrf_fn = os.path.join(out_path, wrfpattern.format(site_id))
+            plu_fn = os.path.join(out_path, pollutant_pattern.format(site_id))
             wrf = forecast.fileio.load_csv(wrf_fn, index_col=wrf_index)
             plu = forecast.fileio.load_csv(plu_fn, index_col=pollutent_index)
             if wrf is None:
@@ -322,10 +325,35 @@ def load_model_input(sites, pollutant, wrf_index, wrfpattern, pollutent_index, p
             ns, nf = input_df.shape
             if ns < 20:
                 input_df = None
+        if input_df is not None:
+            ns, nf = input_df.shape
+            if ns < 20:
+                input_df = None
         
         if input_df is not None:
             logging.info('load_model_input {} {} {} {}'.format(site_id, input_df.shape, input_df.index[0], input_df.index[0].month))
+            
+            if preprocessing == 'minmax_log': 
+                #### Yunha applies log 10 to pollution data #############
+                print("before log10 debug ", input_df.columns, input_df[0:1])
+                # apply log10 transform to pollution data (last24h and hourly)
+                input_df['last24h']=np.log10(input_df['last24h'])
+                input_df['last24h'].replace([np.inf, -np.inf], np.nan, inplace=True)
+
+                input_df['value']=np.log10(input_df['value'])
+                input_df['value'].replace([np.inf, -np.inf], np.nan, inplace=True)                
+                print("log10 debug ", input_df.columns, input_df[0:1])
+                #################
+                
             input_df = input_df.dropna()
+            
+            
+            ##### Yunha - I will delete some features in remove_ls 
+            remove_ls = ['lastday8havg', 'Water_vap_mixing_ratio_kg_per_kg', 'WindDir_deg']
+            input_df.drop([x for x in remove_ls if x in input_df.columns], axis=1, inplace=True)
+            logging.info('now list of features are {}'.format(' '.join(map(str, input_df.columns))))
+            #####
+            
             input_df_davg = input_df.get(['value', 'date']).groupby(by=['date']).mean()
             n_hours = input_df.shape[0]
             n_days = input_df_davg.shape[0]
@@ -363,19 +391,132 @@ def load_model_input(sites, pollutant, wrf_index, wrfpattern, pollutent_index, p
 
     return
 
+'''
+def load_model_input(sites, pollutant, wrf_index, wrfpattern, pollutent_index, pollutant_pattern, processed_data_path, pattern, split_seasons=False):
+    print('load_model_input')
+    for index, row in sites.iterrows():
+        site_id = index
+        input_fn = os.path.join(processed_data_path, pattern.format(pollutant,site_id))
+        input_df = None
+        if os.path.exists(input_fn):
+            input_df = forecast.fileio.load_csv(input_fn, index_col='index')
+            
+            logging.info('load intermedia data for site {} {}, shape={}'.format(site_id, pollutant, input_df.shape))
+            forecast.convertfmt.parse_datetime_index(input_df, fmt="%Y-%m-%d %H:%M:%S")
+                        
+        elif input_df is None:
+            wrf_fn = os.path.join(processed_data_path, wrfpattern.format(site_id))
+            plu_fn = os.path.join(processed_data_path, pollutant_pattern.format(site_id))
+            wrf = forecast.fileio.load_csv(wrf_fn, index_col=wrf_index)
+            plu = forecast.fileio.load_csv(plu_fn, index_col=pollutent_index)
+            if wrf is None:
+                logging.info('no wrf data for site {}'.format(site_id))
+            elif plu is None:
+                logging.info('no pollutant={} data for site {}'.format(pollutant, site_id))
+            else:
+                forecast.convertfmt.parse_datetime_index(wrf, fmt="%Y-%m-%d %H:%M:%S")
+                forecast.convertfmt.parse_datetime_index(plu, fmt="%Y-%m-%d %H:%M:%S")
+                input_df = pandas.concat([wrf, plu], axis=1)
+                input_df = input_df.dropna()
+                input_df.index.rename('index', inplace=True)
+                logging.info('gather data for site {} {}, shape={}'.format(site_id, pollutant, input_df.shape))
 
-def train_test_split(dfx, dsy, sep_factor=0.65):
+        if input_df is not None:
+            
+            logging.info('load_model_input {} {} {} {}'.format(site_id, input_df.shape, input_df.index[0], input_df.index[0].month))
+            input_df = input_df.dropna()
+            ##### Yunha - I will delete some features in remove_ls 
+            remove_ls = ['lastday8havg', 'Water_vap_mixing_ratio_kg_per_kg', 'WindDir_deg']
+            input_df.drop([x for x in remove_ls if x in input_df.columns], axis=1, inplace=True)
+            logging.info('now list of features are {}'.format(' '.join(map(str, input_df.columns))))
+            #####
+                
+            input_df_davg = input_df.get(['value', 'date']).groupby(by=['date']).mean()
+            n_hours = input_df.shape[0]
+            n_days = input_df_davg.shape[0]
+
+            
+            if os.path.exists(input_fn):
+                
+            else:
+                logging.info('hourly data size {}'.format(n_hours))
+                logging.info('daily data size {}'.format(n_days))
+
+                logging.info('save input file {}'.format(input_fn))
+                input_df.to_csv(input_fn)
+                save_bk = '../../data/AirQuality/data/USA/{}/{}.csv'.format(pollutant,site_id)
+                os.makedirs(os.path.dirname(save_bk), exist_ok=True)
+                logging.info('save backup file {}'.format(save_bk))
+                ml_inputdata = input_df.copy()
+                ml_inputdata['site'] = site_id
+                ml_inputdata.to_csv(save_bk)
+            
+
+        if input_df is not None:
+            ns, nf = input_df.shape
+            if ns < 20:
+                input_df = None
+                
+        if input_df is not None:
+
+
+            if n_days > 730:
+                cols = list(input_df)
+                cols.remove('date')
+                target_col = 'value'
+                feature_cols = cols.copy()
+                feature_cols.remove(target_col)
+                input_df = input_df.get(cols)
+ 
+                if split_seasons:
+                    df_warm = input_df[(input_df.index.month >  4) & (input_df.index.month < 10)]
+                    yield df_warm.get(feature_cols), df_warm[target_col], 'warmmonths', site_id
+       
+                    df_cold = input_df[(input_df.index.month > 10) | (input_df.index.month <  3)]
+                    yield df_cold.get(feature_cols), df_cold[target_col], 'coldmonths', site_id
+                
+                else:
+                    yield input_df.get(feature_cols), input_df[target_col], 'fullyear', site_id
+                    
+                logging.info('final checking: features are {}'.format(' '.join(map(str, input_df.columns))))
+                    
+
+    return
+'''
+
+def train_test_split(dfx, dsy, sep_factor=0.5):# , preprocessing='minmax'
+    global preprocessing
+    
+#    print("debug preprocessing ", dfx.shape, dsy.shape, type(dfx), type(dsy))
+        
     ns, nf = dfx.shape
     train_len = int(ns * sep_factor)
-    min_max_scaler = sklearn.preprocessing.MinMaxScaler()
-    min_max_scaler.fit(dfx.iloc[0:train_len, :].values)
-    xfull = min_max_scaler.transform(dfx.values)
+    if preprocessing == 'minmax'  or preprocessing == 'minmax_log':
+        min_max_scaler = sklearn.preprocessing.MinMaxScaler()
+        min_max_scaler.fit(dfx.iloc[0:train_len, :].values)
+        xfull = min_max_scaler.transform(dfx.values)
+        # y is max only normalization
+        scaler = max(dsy.iloc[0:train_len].values)
+        yfull = dsy.values / scaler
+    elif preprocessing == "quantile":
+        x_scaler = sklearn.preprocessing.QuantileTransformer(output_distribution='normal', random_state=0) 
+        x_scaler.fit(dfx.iloc[0:train_len, :].values)
+        xfull = x_scaler.transform(dfx.values)
+        
+        scaler = sklearn.preprocessing.QuantileTransformer(output_distribution='normal', random_state=0)
+        y = dsy.values.reshape(-1,1)
+#        print("debug preprocessing  2", y.shape, dsy.shape, type(y),type(dsy))
+        scaler.fit(y[0:train_len,:])
+        yfull =  scaler.transform(y)
+        yfull = yfull.flatten() # 2d numpy to 1        
+    
     x_train = xfull[0:train_len, :]
     x_test  = xfull[train_len:, :]
-    scaler = max(dsy.iloc[0:train_len].values)
-    yfull = dsy.values / scaler
     y_train = yfull[0:train_len]
     y_test  = yfull[train_len:]
+    
+    print("debug preprocessing ", yfull.shape, y_test.shape, type(yfull), type(y_test))
+    
     return x_train, y_train, x_test, y_test, train_len, scaler
 
 
@@ -401,13 +542,20 @@ def lime_scores(x_train, x_test, time_test, feature_names, target_name, model, p
 
 
 def evaluate_method(sites, pollutant, wrf_index, wrfpattern, pollutent_index, pollutant_pattern, processed_data_path, pattern, out_path, split_seasons, model_funcs, epochs, batch_size, verbose, saveprefixes, replace=True):
+    
+    global preprocessing
+    
     print('evaluate_method', model_funcs)
     mname, create_model, train_func, predict_func = model_funcs
     saveprefix_feature_statistics, saveprefix_prd, saveprefix_permute_train, saveprefix_permute_test, saveprefix_mae, saveprefix_importance = saveprefixes
     for dfx, dsy, datatag, site_id in load_model_input(sites, pollutant, wrf_index, wrfpattern, pollutent_index, pollutant_pattern, processed_data_path, pattern, split_seasons=split_seasons):
         print('loop evaluate_method', model_funcs, site_id)
         feature_names = list(dfx)
+        logging.info('dfx list are {}'.format(' '.join(map(str, feature_names))))
+        logging.info('dsy list are {}'.format(' '.join(map(str, list(dsy)))))
         x_train, y_train, x_test, y_test, train_len, scaler = train_test_split(dfx,dsy)
+        
+        #print("debug eval are ", x_train, x_test, "y are ", y_train, y_test, "length", train_len, scaler)
         ns, nf = dfx.shape
         input_dim = nf
         output_dim = 1
@@ -476,8 +624,23 @@ def evaluate_method(sites, pollutant, wrf_index, wrfpattern, pollutent_index, po
             pred = forecast.modelfit.predict(model, x_test, predict_func=predict_func)
             if len(pred.shape) > 1:
                 pred = pred.flatten()
-            truth = y_test * scaler
-            pred = pred * scaler
+                
+            if preprocessing == 'minmax':
+                truth = y_test * scaler
+                pred = pred * scaler
+                
+            elif preprocessing == 'minmax_log':
+                y_test= np.array(10 ** y_test)
+                pred = np.array(10 ** pred)
+                truth = y_test * scaler
+                pred = pred * scaler
+                
+            elif preprocessing == 'quantile':
+                truth = scaler.inverse_transform(y_test.reshape(-1,1))
+                truth = truth.flatten()
+                pred = scaler.inverse_transform(pred.reshape(-1,1))
+                pred = pred.flatten()
+                
             df_prd = pandas.DataFrame({
                 'index': dfx.index[train_len:],
                 'truth': truth,
@@ -805,6 +968,9 @@ if __name__ == '__main__':
     args = parser.parse_args()
     vargs = vars(args)
     print(vargs)
+    
+    global preprocessing
+    preprocessing = vargs['preprocessing']
 
     os.makedirs(os.path.dirname(args.logpath), exist_ok=True)
 
